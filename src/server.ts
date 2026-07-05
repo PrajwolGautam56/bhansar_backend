@@ -18,15 +18,19 @@ dotenv.config();
 
 const app = express();
 const port = Number(process.env.PORT) || 5001;
+function normalizeOrigin(origin: string) {
+  return origin.replace(/\/+$/, '');
+}
+
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => normalizeOrigin(origin.trim()))
   .filter(Boolean);
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
       return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true
