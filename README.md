@@ -16,6 +16,22 @@ For development:
 npm run dev
 ```
 
+## Import Companies
+
+Prepare a CSV with any of these columns:
+
+```text
+company name, exim code, district, location, pan number, products, start date, end date, transaction amount, current service provider, notes
+```
+
+Then run:
+
+```bash
+npm run import:companies -- /path/to/companies.csv
+```
+
+Companies are upserted by `exim code` when available, otherwise by company name. Transaction rows are appended to the company profile.
+
 ## Environment
 
 Set these variables in Railway:

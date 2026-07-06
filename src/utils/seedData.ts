@@ -34,6 +34,7 @@ async function seed() {
       location: 'Kathmandu',
       district: 'Kathmandu',
       panNumber: '609123456',
+      eximCode: 'EXIM-609123456',
       importProducts: ['Electronics', 'Mobile accessories'],
       importProductDetails: [
         { name: 'Electronics', hsCode: '8517' },
@@ -42,6 +43,10 @@ async function seed() {
       importFrequency: 'MONTHLY',
       entryPort: 'Birgunj Dry Port',
       currentServiceProvider: 'Independent clearing agent',
+      importTransactions: [
+        { startDate: dayjs().subtract(6, 'month').toDate(), endDate: dayjs().subtract(4, 'month').toDate(), amount: 5200000, currency: 'NPR', notes: 'Electronics shipment value' },
+        { startDate: dayjs().subtract(3, 'month').toDate(), endDate: dayjs().subtract(1, 'month').toDate(), amount: 4700000, currency: 'NPR', notes: 'Mobile accessories shipment value' }
+      ],
       status: 'INTERESTED',
       notes: 'Needs recurring clearance support.',
       createdBy: admin._id
@@ -51,6 +56,7 @@ async function seed() {
       location: 'Biratnagar',
       district: 'Morang',
       panNumber: '304998112',
+      eximCode: 'EXIM-304998112',
       importProducts: ['Fertilizer', 'Agro machinery'],
       importProductDetails: [
         { name: 'Fertilizer', hsCode: '3105' },
@@ -59,6 +65,9 @@ async function seed() {
       importFrequency: 'QUARTERLY',
       entryPort: 'Biratnagar ICP',
       currentServiceProvider: 'In-house logistics team',
+      importTransactions: [
+        { startDate: dayjs().subtract(9, 'month').toDate(), endDate: dayjs().subtract(7, 'month').toDate(), amount: 3100000, currency: 'NPR', notes: 'Fertilizer import value' }
+      ],
       status: 'LEAD',
       notes: 'Referral from existing client.',
       createdBy: admin._id

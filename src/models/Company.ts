@@ -6,6 +6,7 @@ const companySchema = new Schema(
     location: { type: String, trim: true },
     district: { type: String, trim: true },
     panNumber: { type: String, trim: true },
+    eximCode: { type: String, trim: true, index: true },
     importProducts: [{ type: String, trim: true }],
     importProductDetails: [
       {
@@ -16,6 +17,15 @@ const companySchema = new Schema(
     importFrequency: { type: String, enum: ['WEEKLY', 'MONTHLY', 'QUARTERLY', 'IRREGULAR'] },
     entryPort: { type: String, trim: true },
     currentServiceProvider: { type: String, trim: true },
+    importTransactions: [
+      {
+        startDate: { type: Date },
+        endDate: { type: Date },
+        amount: { type: Number, min: 0 },
+        currency: { type: String, trim: true, default: 'NPR' },
+        notes: { type: String, trim: true }
+      }
+    ],
     status: { type: String, enum: ['LEAD', 'INTERESTED', 'ACTIVE_CLIENT', 'INACTIVE'], default: 'LEAD' },
     notes: { type: String },
     workingSince: { type: Date },
@@ -24,7 +34,7 @@ const companySchema = new Schema(
   { timestamps: true }
 );
 
-companySchema.index({ name: 'text', location: 'text', district: 'text' });
+companySchema.index({ name: 'text', location: 'text', district: 'text', eximCode: 'text' });
 
 export type Company = InferSchemaType<typeof companySchema>;
 export default mongoose.model<Company>('Company', companySchema);
