@@ -8,15 +8,15 @@ dotenv.config();
 type Row = Record<string, string>;
 
 const aliases: Record<string, string[]> = {
-  name: ['company', 'company name', 'name', 'importer', 'importer name'],
-  eximCode: ['exim', 'exim code', 'exim_code', 'eximcode'],
+  name: ['company', 'company name', 'name', 'importer', 'importer name', 'consignee_name', 'consignee name'],
+  eximCode: ['exim', 'exim code', 'exim_code', 'eximcode', 'consignee'],
   location: ['location', 'city', 'address'],
   district: ['district'],
   panNumber: ['pan', 'pan number', 'vat', 'vat number'],
   products: ['products', 'product', 'import products', 'imported products'],
-  startDate: ['start date', 'start_date', 'from date', 'from'],
-  endDate: ['end date', 'end_date', 'to date', 'to'],
-  transactionAmount: ['transaction amount', 'amount', 'import amount', 'value', 'transaction_value'],
+  startDate: ['start date', 'start_date', 'from date', 'from', 'firstofasmt_date', 'first asmt date'],
+  endDate: ['end date', 'end_date', 'to date', 'to', 'lastofasmt_date', 'last asmt date'],
+  transactionAmount: ['transaction amount', 'amount', 'import amount', 'value', 'transaction_value', 'sumofcif_value', 'cif value'],
   currentServiceProvider: ['current service provider', 'service provider', 'clearing agent', 'agent'],
   notes: ['notes', 'remarks']
 };
@@ -73,6 +73,14 @@ function parseAmount(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function parseDateValue(value: string) {
+  const trimmed = value.trim();
+  if (/^\d{8}$/.test(trimmed)) {
+    return `${trimmed.slice(0, 4)}-${trimmed.slice(4, 6)}-${trimmed.slice(6, 8)}`;
+  }
+  return trimmed || undefined;
+}
+
 function parseProducts(value: string) {
   return value
     .split(/[;,|]/)
@@ -87,6 +95,8 @@ async function importCompanies(filePath: string) {
   await mongoose.connect(process.env.MONGODB_URI);
 
   let imported = 0;
+  let operations: Parameters<typeof Company.bulkWrite>[0] = [];
+
   for (const row of rows) {
     const name = get(row, 'name');
     const eximCode = get(row, 'eximCode');
@@ -98,8 +108,8 @@ async function importCompanies(filePath: string) {
     const endDate = get(row, 'endDate');
     const transaction = amount || startDate || endDate
       ? {
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
+          startDate: parseDateValue(startDate),
+          endDate: parseDateValue(endDate),
           amount,
           currency: 'NPR',
           notes: get(row, 'notes')
@@ -118,11 +128,26 @@ async function importCompanies(filePath: string) {
         importProducts: products,
         importProductDetails: products.map((product) => ({ name: product }))
       },
-      ...(transaction ? { $push: { importTransactions: transaction } } : {})
+      ...(transaction ? { $addToSet: { importTransactions: transaction } } : {})
     };
 
-    await Company.findOneAndUpdate(filter, update, { upsert: true, new: true, setDefaultsOnInsert: true });
+    operations.push({
+      updateOne: {
+        filter,
+        update,
+        upsert: true
+      }
+    });
     imported += 1;
+
+    if (operations.length >= 500) {
+      await Company.bulkWrite(operations, { ordered: false });
+      operations = [];
+    }
+  }
+
+  if (operations.length) {
+    await Company.bulkWrite(operations, { ordered: false });
   }
 
   await mongoose.disconnect();
