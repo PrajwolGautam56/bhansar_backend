@@ -88,6 +88,144 @@ function parseProducts(value: string) {
     .filter(Boolean);
 }
 
+const districtNames = [
+  'ACHHAM',
+  'ARGHAKHANCHI',
+  'BAGLUNG',
+  'BAITADI',
+  'BAJHANG',
+  'BAJURA',
+  'BANKE',
+  'BARA',
+  'BARDIYA',
+  'BHAKTAPUR',
+  'BHOJPUR',
+  'CHITWAN',
+  'DADHELDHURA',
+  'DAILEKH',
+  'DANG',
+  'DARCHULA',
+  'DHADING',
+  'DHANKUTA',
+  'DHANUSHA',
+  'DOLAKHA',
+  'DOLPA',
+  'DOTI',
+  'GORKHA',
+  'GULMI',
+  'HUMLA',
+  'ILAM',
+  'JAJARKOT',
+  'JHAPA',
+  'JUMLA',
+  'KAILALI',
+  'KALIKOT',
+  'KANCHANPUR',
+  'KAPILVASTU',
+  'KASKI',
+  'KATHMANDU',
+  'KAVRE',
+  'KHOTANG',
+  'LALITPUR',
+  'LAMJUNG',
+  'MAHOTTARI',
+  'MAKAWANPUR',
+  'MORANG',
+  'MUGU',
+  'MUSTANG',
+  'MYAGDI',
+  'NAWALPARASI',
+  'NUWAKOT',
+  'PALPA',
+  'PANCHTHAR',
+  'PARBAT',
+  'PARSA',
+  'PYUTHAN',
+  'RAMECHHAP',
+  'RASUWA',
+  'RAUTAHAT',
+  'ROLPA',
+  'RUKUM',
+  'RUPANDEHI',
+  'RUPNAD',
+  'SALYAN',
+  'SANKHUWASABHA',
+  'SAPTARI',
+  'SARLAHI',
+  'SINDHULI',
+  'SINDHUPALCHOK',
+  'SIRAHA',
+  'SOLUKHUMBU',
+  'SUNSARI',
+  'SURKHET',
+  'SYANGJA',
+  'TANAHU',
+  'TAPLEJUNG',
+  'TERHATHUM',
+  'UDAYAPUR'
+];
+
+const addressMarkers = [
+  'LU.SA.NA.',
+  'LU.SA.NA',
+  'SI.NA.PA.',
+  'SI.NA.PA',
+  'SI NA PA',
+  'SINAPA',
+  'SIDDHARTHA',
+  'SIDDHARTHANAGA',
+  'SIDDHARTHANAGER',
+  'TILOTTAMA',
+  'BUTWAL',
+  'BIRATNAGAR',
+  'BIRGANJ',
+  'BHARATPUR',
+  'KATHMANDU',
+  'LALITPUR',
+  'BHAKTAPUR',
+  'KAPILVASTU',
+  'TRIPURASUNDARI',
+  'OMSATIYA',
+  'KOHALPUR',
+  'RAPTI',
+  'LAMAHI',
+  'MAINAHIYA'
+];
+
+function normalizeDistrict(value: string) {
+  return value === 'RUPNAD' ? 'RUPANDEHI' : value;
+}
+
+function findMarkerIndex(value: string) {
+  const upper = value.toUpperCase();
+  const candidates = [...districtNames, ...addressMarkers]
+    .map((marker) => ({ marker, index: upper.indexOf(marker) }))
+    .filter((item) => item.index > 2)
+    .sort((a, b) => a.index - b.index);
+  return candidates[0]?.index ?? -1;
+}
+
+function parseConsigneeName(rawValue: string) {
+  const raw = rawValue.trim();
+  const bracketIndex = raw.search(/[\[\(]/);
+  const markerIndex = findMarkerIndex(raw);
+  const splitIndex =
+    bracketIndex > 2 && markerIndex > 2 ? Math.min(bracketIndex, markerIndex) : bracketIndex > 2 ? bracketIndex : markerIndex;
+
+  const name = (splitIndex > 2 ? raw.slice(0, splitIndex) : raw)
+    .replace(/\s+/g, ' ')
+    .replace(/[,;-]+$/, '')
+    .trim();
+  const address = (splitIndex > 2 ? raw.slice(splitIndex) : '')
+    .replace(/^[\[\(]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const upperAddress = address.toUpperCase();
+  const district = normalizeDistrict(districtNames.find((item) => upperAddress.includes(item)) || '');
+
+  return { name: name || raw, location: address, district, raw };
+}
+
 async function importCompanies(filePath: string) {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
   const content = await fs.readFile(filePath, 'utf8');
@@ -98,7 +236,8 @@ async function importCompanies(filePath: string) {
   let operations: Parameters<typeof Company.bulkWrite>[0] = [];
 
   for (const row of rows) {
-    const name = get(row, 'name');
+    const parsedName = parseConsigneeName(get(row, 'name'));
+    const name = parsedName.name;
     const eximCode = get(row, 'eximCode');
     if (!name && !eximCode) continue;
 
@@ -116,15 +255,17 @@ async function importCompanies(filePath: string) {
         }
       : undefined;
 
+    const existingNotes = get(row, 'notes');
     const filter = eximCode ? { eximCode } : { name };
     const update = {
       $set: {
         name: name || eximCode,
         eximCode,
-        location: get(row, 'location'),
-        district: get(row, 'district'),
+        location: get(row, 'location') || parsedName.location,
+        district: get(row, 'district') || parsedName.district,
         panNumber: get(row, 'panNumber'),
         currentServiceProvider: get(row, 'currentServiceProvider'),
+        notes: existingNotes || (parsedName.raw !== parsedName.name ? `Imported raw consignee name: ${parsedName.raw}` : ''),
         importProducts: products,
         importProductDetails: products.map((product) => ({ name: product }))
       },

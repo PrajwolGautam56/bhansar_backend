@@ -9,7 +9,7 @@ export async function listCompanies(req: Request, res: Response) {
   const search = regex(req.query.search);
   const filter: Record<string, unknown> = {};
   if (req.query.status) filter.status = req.query.status;
-  if (search) filter.name = search;
+  if (search) filter.$or = [{ name: search }, { eximCode: search }, { location: search }, { district: search }];
   return res.json(
     await paginate(Company, filter, req.query, {
       sort: { updatedAt: -1 },
