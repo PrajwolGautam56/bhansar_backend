@@ -8,11 +8,15 @@ import { paginate, regex } from '../utils/query.js';
 export async function listCompanies(req: Request, res: Response) {
   const search = regex(req.query.search);
   const filter: Record<string, unknown> = {};
+  const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : 'updatedAt';
+  const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+  const allowedSorts = new Set(['name', 'eximCode', 'district', 'location', 'currentServiceProvider', 'importFrequency', 'status', 'entryPort', 'updatedAt', 'createdAt']);
+  const sortField = allowedSorts.has(sortBy) ? sortBy : 'updatedAt';
   if (req.query.status) filter.status = req.query.status;
   if (search) filter.$or = [{ name: search }, { eximCode: search }, { location: search }, { district: search }];
   return res.json(
     await paginate(Company, filter, req.query, {
-      sort: { updatedAt: -1 },
+      sort: { [sortField]: sortOrder, updatedAt: -1 },
       populate: { path: 'createdBy', select: 'name' }
     })
   );
