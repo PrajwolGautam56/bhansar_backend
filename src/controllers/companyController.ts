@@ -13,7 +13,7 @@ export async function listCompanies(req: Request, res: Response) {
   const allowedSorts = new Set(['name', 'eximCode', 'district', 'location', 'currentServiceProvider', 'importFrequency', 'status', 'entryPort', 'updatedAt', 'createdAt']);
   const sortField = allowedSorts.has(sortBy) ? sortBy : 'updatedAt';
   if (req.query.status) filter.status = req.query.status;
-  if (search) filter.$or = [{ name: search }, { eximCode: search }, { location: search }, { district: search }];
+  if (search) filter.$or = [{ name: search }, { eximCode: search }, { location: search }, { district: search }, { phoneNumbers: search }, { ownerName: search }];
   return res.json(
     await paginate(Company, filter, req.query, {
       sort: { [sortField]: sortOrder, updatedAt: -1 },

@@ -18,7 +18,11 @@ const aliases: Record<string, string[]> = {
   endDate: ['end date', 'end_date', 'to date', 'to', 'lastofasmt_date', 'last asmt date'],
   transactionAmount: ['transaction amount', 'amount', 'import amount', 'value', 'transaction_value', 'sumofcif_value', 'cif value'],
   currentServiceProvider: ['current service provider', 'service provider', 'clearing agent', 'agent'],
-  notes: ['notes', 'remarks']
+  phoneNumbers: ['contact', 'contacts', 'phone', 'phone number', 'mobile', 'number'],
+  ownerName: ['owner name', 'owner', 'contact person'],
+  followUpDate: ['followup date', 'follow-up date', 'follow up date', 'next followup'],
+  place: ['place', 'address place'],
+  notes: ['notes', 'remarks', 'remaks']
 };
 
 function parseCsvLine(line: string) {
@@ -86,6 +90,17 @@ function parseProducts(value: string) {
     .split(/[;,|]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parsePhoneNumbers(value: string) {
+  if (!value || /^null$/i.test(value.trim())) return [];
+  const phones: string[] = [];
+  for (const token of value.split(/[,;|/\n]+/)) {
+    const digits = token.replace(/\D/g, '').replace(/^977(?=9)/, '');
+    const matches = digits.match(/\d{7,10}/g) || [];
+    phones.push(...matches);
+  }
+  return [...new Set(phones.filter((item) => item.length >= 7 && !/^0+$/.test(item)))];
 }
 
 const districtNames = [
@@ -242,6 +257,7 @@ async function importCompanies(filePath: string) {
     if (!name && !eximCode) continue;
 
     const products = parseProducts(get(row, 'products'));
+    const phoneNumbers = parsePhoneNumbers(get(row, 'phoneNumbers'));
     const amount = parseAmount(get(row, 'transactionAmount'));
     const startDate = get(row, 'startDate');
     const endDate = get(row, 'endDate');
@@ -256,20 +272,33 @@ async function importCompanies(filePath: string) {
       : undefined;
 
     const existingNotes = get(row, 'notes');
+    const ownerName = get(row, 'ownerName');
+    const place = get(row, 'place');
+    const followUpDate = parseDateValue(get(row, 'followUpDate'));
     const filter = eximCode ? { eximCode } : { name };
-    const update = {
-      $set: {
+    const setPayload: Record<string, unknown> = {
         name: name || eximCode,
         eximCode,
-        location: get(row, 'location') || parsedName.location,
+        location: get(row, 'location') || place || parsedName.location,
         district: get(row, 'district') || parsedName.district,
         panNumber: get(row, 'panNumber'),
         currentServiceProvider: get(row, 'currentServiceProvider'),
-        notes: existingNotes || (parsedName.raw !== parsedName.name ? `Imported raw consignee name: ${parsedName.raw}` : ''),
-        importProducts: products,
-        importProductDetails: products.map((product) => ({ name: product }))
-      },
-      ...(transaction ? { $addToSet: { importTransactions: transaction } } : {})
+        ownerName,
+        followUpDate,
+        notes: [existingNotes, parsedName.raw !== parsedName.name ? `Imported raw consignee name: ${parsedName.raw}` : ''].filter(Boolean).join(' | ')
+    };
+    if (products.length) {
+      setPayload.importProducts = products;
+      setPayload.importProductDetails = products.map((product) => ({ name: product }));
+    }
+
+    const addToSet: Record<string, unknown> = {};
+    if (transaction) addToSet.importTransactions = transaction;
+    if (phoneNumbers.length) addToSet.phoneNumbers = { $each: phoneNumbers };
+
+    const update = {
+      $set: setPayload,
+      ...(Object.keys(addToSet).length ? { $addToSet: addToSet } : {})
     };
 
     operations.push({
